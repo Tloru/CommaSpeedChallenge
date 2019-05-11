@@ -80,7 +80,7 @@ def build_model(input_shape):
     model.add(keras.layers.Flatten())
     model.add(keras.layers.Dense(256, activation='relu'))
     model.add(keras.layers.Dropout(0.5))
-    model.add(keras.layers.Dense(1, activation='relu'))
+    model.add(keras.layers.Dense(1, activation=None))
 
     model.compile(loss="mse", optimizer="Adam")
 
@@ -101,7 +101,7 @@ except:
 count = 0
 while True:
     inp, target = get_batch(train_inp, train_target, count * 128, length=128)
-    model.fit(inp, target, batch_size=16, epochs=4)
+    model.fit(inp, target, batch_size=16, epochs=1)
     print("saving weights...")
     model.save("./weights.h5py")
     count += 1
