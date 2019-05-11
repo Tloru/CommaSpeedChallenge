@@ -34,7 +34,7 @@ There are a lot of problems with the above method:
 - The model is not temporal, the only temporal information is encoded in the subtracted image.
 - The model is not that big, and under fits the data.
   This is because I'm training it on an old MacBook Air, and so yeah.
-- I'm normalizing the input images, but haven't gotten around to normalizing the output ones.
+- I'm normalizing the input images, but haven't gotten around to normalizing the output speeds.
 
 How I will fix some of these issues:
 
@@ -48,7 +48,79 @@ How I will fix some of these issues:
 
 Yeah, that's about it. I'm mainly putting this on Github to have a backup in case something goes wrong.
 
-# Running It
+## Revised Method (Not Implemented Yet)
+New training process:
+
+```
+[training video]
+    ↓
+split video into frame sequence:
+    read the training video
+    convert the frames to B&W
+    crop the frames
+    save to folder
+    ↓
+generate encodings:
+    read the saved frames
+    use pre-trained inception v3 to generate 101-dimensional encodings per frame
+    save encodings to folder
+    ↓
+train the RNN:
+    read saved encodings
+    read target speeds
+    normalize target speeds
+    train RNN on encodings → speeds
+    save weights
+    ↓
+[weights file]
+```
+
+Prediction process:
+
+```
+[testing video]
+    ↓
+split testing into frame sequence:
+    read the training video
+    convert the frames to B&W
+    crop the frames
+    save to folder
+    ↓
+generate encodings:
+    read the saved frames
+    use pre-trained inception v3 to generate 101-dimensional encodings per frame
+    save encodings to folder
+    ↓
+predict new images:
+    load the model from the saved weights
+    restructure model for prediction
+    read the testing encodings
+    predict speeds from encodings using RNN
+    de-normalize predicted speeds
+    save predicted speeds
+    ↓
+[test.txt]
+```
+
+### Reasoning
+> Why no longer use frame subtraction?
+
+Because I'll be using inception v3 to generate encodings for each frame, and frame subtraction would mess with the encoding results.
+
+> Why inception v3?
+
+Inception v3, despite being a classification network, has been trained on massive amounts of data, and for this reason can easily extract details from images.
+
+> What will happen to the temporal aspect?
+
+Because these encodings are smaller than whole images, I plan to pass two encodings (temporally separated by one step) to the model at once.
+In addition to these images, I'll also pass the previous frame's speed, because upon inspecting the data, I realized that from frame to frame, the speed didn't diverge that much.
+
+> Where will you be working on this?
+
+In the `develop` branch : )
+
+## Running It
 Documentation for `preprocess.py`:
 
 ```
