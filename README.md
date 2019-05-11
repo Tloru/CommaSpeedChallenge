@@ -24,8 +24,6 @@ Right now, the model uses frame differences to predict speed.
 The network then convolves over this to produce an image encoding.
 After then, a few dense layers are used for prediction.
 
-So far, I've been able to reach a loss of about `<15`, and the goal is `<3`.
-
 ## Plan
 There are a lot of problems with the above method:
 
@@ -135,4 +133,30 @@ Documentation for `train.py`:
 usage:        $ python3 train.py train_inp train_target
 train_inp:    folder path of training frame sequence - example: ./train/
 train_target: file path of training speed sequence   - example: ./data/train.txt
+```
+
+## Requirements
+Generated using `pip3 freeze` in `venv`:
+```
+absl-py==0.7.1
+astor==0.7.1
+gast==0.2.2
+google-pasta==0.1.6
+grpcio==1.20.1
+h5py==2.9.0
+Keras==2.2.4
+Keras-Applications==1.0.7
+Keras-Preprocessing==1.0.9
+Markdown==3.1
+numpy==1.16.3
+opencv-python==4.1.0.25
+protobuf==3.7.1
+PyYAML==5.1
+scipy==1.2.1
+six==1.12.0
+tb-nightly==1.14.0a20190301
+tensorflow==2.0.0a0
+termcolor==1.1.0
+tf-estimator-nightly==1.14.0.dev2019030115
+Werkzeug==0.15.2
 ```
