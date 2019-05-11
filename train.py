@@ -98,7 +98,7 @@ except:
     print("no model found... building model...")
     model = build_model(input_shape)
 
-count = 18
+count = 0
 while True:
     inp, target = get_batch(train_inp, train_target, count * 128, length=128)
     model.fit(inp, target, batch_size=16, epochs=4)
