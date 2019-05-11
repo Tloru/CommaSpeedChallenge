@@ -24,8 +24,6 @@ Right now, the model uses frame differences to predict speed.
 The network then convolves over this to produce an image encoding.
 After then, a few dense layers are used for prediction.
 
-So far, I've been able to reach a loss of about `<15`, and the goal is `<3`.
-
 ## Plan
 There are a lot of problems with the above method:
 
