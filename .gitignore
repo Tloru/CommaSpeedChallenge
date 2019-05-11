@@ -2,3 +2,6 @@
 test/*
 train/*
 venv/*
+*.png
+*.jpg
+
