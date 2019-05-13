@@ -7,8 +7,11 @@ import cv2
 import tensorflow as tf # tensorflow >= 2.0
 from tensorflow import keras
 from keras.preprocessing import image
+from keras.preprocessing.sequence import TimeseriesGenerator
 from keras.applications.inception_v3 import InceptionV3, preprocess_input
-from keras.models import Model
+from keras.models import Model, Sequential
+from keras.layers import RNN, Dense, LSTM
+
 
 # Extractor class courtesy @harvitronix:
 # https://github.com/harvitronix/five-video-classification-methods/blob/master/extractor.py
@@ -20,10 +23,14 @@ class Extractor:
             include_top=True
         )
 
+        print(base_model.get_layer("avg_pool"))
+
         self.model = Model(
             inputs=base_model.input,
-            outputs=base_model.get_layer('avg_pool').output
+            outputs=base_model.get_layer("avg_pool").output
         )
+
+        # self.model.compile(optimizer="Adam", loss="mse")
 
     def extract(self, image_path):
         img = image.load_img(image_path, target_size=(299, 299))
@@ -45,26 +52,12 @@ class RNNCore:
         else: self.model = load_model(weights)
 
     def _build_model(self):
-        model = keras.models.Sequential()
-
-        # input layer
-        model.add(keras.layers.LSTM(
-            256, return_sequences=True, stateful=True,
-            batch_input_shape=(self.batch_size, self.timesteps, self.inp_size)))
-
-        # hidden RNN layers
-        model.add(keras.layers.LSTM(256, return_sequences=True, stateful=True))
-        model.add(keras.layers.LSTM(256, return_sequences=True, stateful=True))
-
-        # stateful → non-stateful
-        model.add(keras.layers.LSTM(256, stateful=True))
-
-        # dense hidden layers
-        model.add(keras.layers.Dense(32, activation="relu"))
-        model.add(keras.layers.Dense(32, activation="relu"))
-
-        # output
-        model.add(keras.layers.Dense(self.out_size, activation=None))
+        model = Sequential()
+        model.add(LSTM(32, return_sequences=True, stateful=True,
+                       batch_input_shape=(self.batch_size, self.timesteps, self.inp_size)))
+        model.add(LSTM(32, return_sequences=True, stateful=True))
+        model.add(LSTM(32, stateful=True))
+        model.add(Dense(1, activation=None))
 
         model.compile(loss='mse', optimizer='rmsprop')
 
@@ -75,6 +68,21 @@ def loader(count, total, length=32):
     bar = '█' * filled + ' ' * (length - filled)
     print("\r{}/{}: |{}| {}%".format(count, total, bar, round((count / total) * 100, ndigits=1)), end="")
 
+def feature_generator(extractor, inp_video, frame_folder):
+    frames = cv2.VideoCapture(inp_video)
+    success, frame = frames.read()
+
+    while success:
+        # process frame
+        frame = frame[:][20:320]
+        # TODO: resize to (299, 299)
+
+        # useless read/write... working on workaround
+        cv2.imwrite(os.path.join(frame_folder, "frame.png"), frame)
+        extraction = extractor.extract(os.path.join(frame_folder, "frame.png"))
+
+        yield extraction
+
 def read_data(out_text):
     with open(out_text, "r") as text:
         out = text.readlines()
@@ -84,65 +92,29 @@ def read_data(out_text):
     mean = stat.mean(out)
     stdev = stat.stdev(out)
 
-    out = list(map(lambda x: (x - mean) / stdev))
+    out = list(map(lambda x: (x - mean) / stdev, out))
     print("output data has been normalized with a mean of {} and a stdev of {}".format(mean, stdev))
 
     return out, mean, stdev
 
-def inp(inp_video):
-    frames = cv2.VideoCapture(inp_video)
-    success, frame = frames.read()
-
-    while success:
-        # process frame
-        frame = frame[:][20:320]
-        yield frame
-
-
 def train(inp_video, frame_folder, out_text, use_cached=False):
-    if not use_cached:
-        # get images
-        frames = cv2.VideoCapture(inp_video)
-        total = int(frames.get(cv2.CAP_PROP_FRAME_COUNT))
-
-        success = True
-        count = 0
-        while success:
-            success, frame = frames.read()
-            count += 1
-
-            if not success: break
-            frame = frame[:][20:320]
-
-            cv2.imwrite(os.path.join(frame_folder, ("frame%6d.png" % count).replace(" ", "0")), frame)
-            loader(count, total)
-        print()
-
     # set up models
     extractor = Extractor()
     inp_size = extractor.model.layers[-1].output_shape[1]
     out_size = 1
     batch_size = 128
-
     rnn_core = RNNCore(inp_size, out_size, batch_size=batch_size)
 
-    print("extracting frames...")
+    print(extractor.extract("./data/shot.png").shape)
 
-    inp = []
-    count = 0
-    while True:
-        count += 1
-        extraction = extractor.extract(os.path.join(frame_folder, ("frame%6d.png" % count).replace(" ", "0")))
-        inp.append(extraction)
-        loader(count, 20400)
-    print()
-
+    inp = feature_generator(extractor, inp_video, frame_folder)
     out, mean, stdev = read_data(out_text)
 
-    inp = np.array(inp)
-    out = np.array(out)
+    data_gen = TimeseriesGenerator(inp, out,
+                               length=32, sampling_rate=2,
+                               batch_size=2)
 
-    rnn_core.model.fit(inp, out, validation_split=0.2, shuffle=False, batch_size=batch_size, epochs=10)
+    rnn_core.model.fit(train, steps_per_epoch=2048, validation_split=0.2, shuffle=False, batch_size=batch_size, epochs=10)
 
 if __name__ == "__main__":
     train("./data/train.mp4", "./train/", "./data/train.txt", use_cached=True)
