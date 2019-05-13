@@ -1,17 +1,24 @@
+print("starting...")
+
 import argparse
 import os
 
 import model
 
 parser = argparse.ArgumentParser()
-command = parser.add_mutually_exclusive_group()
-command.add_argument("process", action="store_true")
-command.add_argument("train", action="store_true")
-command.add_argument("test", action="store_true")
-parser.add_argument("-i", default=None, help="path to input folder/file")
-parser.add_argument("-o", default=None, help="path to output folder/file")
+parser.add_argument("command", type=str, help="command to run")
+command, paths = parser.parse_known_args()
+command_name = command.command
 
-args = parser.parse_args()
+commands = {
+    "process": model.process,
+    "train":   model.train,
+    "test":    model.test
+}
 
-if args.process:
-    os.path.isfile()
+paths = list(map(os.path.abspath, paths))
+command = commands[command_name]
+
+print("running '{}' command...".format(command_name))
+command(paths)
+print("task successful!")
