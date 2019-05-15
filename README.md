@@ -54,7 +54,7 @@ normalize the speeds by dividing by the mean (0 min, 1 average)
 ↓ [training input data + training target data]
 assemble batches and train neural network
 save the weights every few epochs
-[neural network weights]
+→ [neural network weights]
 ```
 
 ### Reasoning
@@ -74,3 +74,6 @@ In addition to these images, I'll also pass the previous frame's speed, because 
 > Where will you be working on this?
 
 In the `develop` branch : )
+
+## TODO
+*I really need to rewrite this readme - quite a lot has changed.*
