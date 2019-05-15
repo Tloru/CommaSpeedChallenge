@@ -12,7 +12,6 @@ from keras.applications.inception_v3 import InceptionV3, preprocess_input
 from keras.models import Model, Sequential
 from keras.layers import RNN, Dense, LSTM
 
-
 # Extractor class courtesy @harvitronix:
 # https://github.com/harvitronix/five-video-classification-methods/blob/master/extractor.py
 # simplified to fit my needs
