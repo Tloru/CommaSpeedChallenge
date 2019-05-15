@@ -11,23 +11,8 @@ Basically, your goal is to predict the speed of a car from a video.
 Your deliverable is `test.txt`
 We will evaluate your test.txt using mean squared error. `<10` is good. `<5` is better. `<3` is heart.
 
-## Method
-This repo has 3 programs:
-
-- [x] `preprocess.py`: splits the videos into a sequence of images, and applies other transformations, such as cropping.
-- [x] `train.py`: defines the model and trains it.
-- [ ] `test.py`: predicts and assembles a list of speeds.
-
-Right now, the model uses frame differences to predict speed.
-2 (or any number) of images are subtracted from another, creating a stack of images
-
-The network then convolves over this to produce an image encoding.
-After then, a few dense layers are used for prediction.
-
-So far, I've been able to reach a loss of about `<15`, and the goal is `<3`.
-
 ## Plan
-There are a lot of problems with the above method:
+There were quite a few problems with my old method:
 
 - I don't know how effective the frame difference method actually is.
   It might not be helping much.
@@ -38,68 +23,38 @@ There are a lot of problems with the above method:
 
 How I will fix some of these issues:
 
-- [ ] Run some tests to figure out which frame preprocessing method is the best (difference, averaging, etc.).
-- [ ] Add some RNN layers (LSTMs are probably overkill) to increase prediction accuracy.
+- [x] Run some tests to figure out which frame preprocessing method is the best (difference, averaging, etc.).
+    - Result: Frame averaging might be the best method,
+      but since I'm preprocessing the images using InceptionV3,
+      I'm only going to do cropping, no grayscale conversion or subtraction.
+- [x] Add some RNN layers (LSTMs are probably overkill) to increase prediction accuracy.
       Since the frame rate is about `20` fps, there shouldn't be that much of a difference in speed -
       adding the previous frame's predicted speed as an input to the model might help.
+    - Result: I've added 3 GRU layers, which should get the job done.
 - [ ] I'll move the training to the cloud at some point to speed up the training -
       With this in place, I could also increase the complexity of the model
-- [ ] write a short script to normalize / denormalize the speeds.
+- [x] write a short script to normalize / denormalize the speeds.
+    - Result: Integrated normalization, have not had the chance to see the training results yet.
 
 Yeah, that's about it. I'm mainly putting this on Github to have a backup in case something goes wrong.
 
-## Revised Method (Not Implemented Yet)
+## Revised Method (Currently Being Implemented)
 New training process:
 
 ```
-[training video]
-    ↓
-split video into frame sequence:
-    read the training video
-    convert the frames to B&W
-    crop the frames
-    save to folder
-    ↓
-generate encodings:
-    read the saved frames
-    use pre-trained inception v3 to generate 101-dimensional encodings per frame
-    save encodings to folder
-    ↓
-train the RNN:
-    read saved encodings
-    read target speeds
-    normalize target speeds
-    train RNN on encodings → speeds
-    save weights
-    ↓
-[weights file]
-```
+get batch of frames from training video.
+preprocess frames and get encodings using InceptionV3 with batch prediction.
+process encodings and shape them to the right size.
+→ [training input data]
 
-Prediction process:
+read the test file for speeds
+normalize the speeds by dividing by the mean (0 min, 1 average)
+→ [training target data]
 
-```
-[testing video]
-    ↓
-split testing into frame sequence:
-    read the training video
-    convert the frames to B&W
-    crop the frames
-    save to folder
-    ↓
-generate encodings:
-    read the saved frames
-    use pre-trained inception v3 to generate 101-dimensional encodings per frame
-    save encodings to folder
-    ↓
-predict new images:
-    load the model from the saved weights
-    restructure model for prediction
-    read the testing encodings
-    predict speeds from encodings using RNN
-    de-normalize predicted speeds
-    save predicted speeds
-    ↓
-[test.txt]
+↓ [training input data + training target data]
+assemble batches and train neural network
+save the weights every few epochs
+[neural network weights]
 ```
 
 ### Reasoning
@@ -119,20 +74,3 @@ In addition to these images, I'll also pass the previous frame's speed, because 
 > Where will you be working on this?
 
 In the `develop` branch : )
-
-## Running It
-Documentation for `preprocess.py`:
-
-```
-usage:       $ python3 preprocess.py input_path output_path
-input_path:  file path of video file to preprocess       - example: ./data/train.mp4
-output_path: folder path of place to save frame sequence - example: ./train/
-```
-
-Documentation for `train.py`:
-
-```
-usage:        $ python3 train.py train_inp train_target
-train_inp:    folder path of training frame sequence - example: ./train/
-train_target: file path of training speed sequence   - example: ./data/train.txt
-```
