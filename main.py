@@ -1,16 +1,17 @@
 import numpy as np
 import os
 import statistics as stat
+import time
 
 import cv2
 
 import tensorflow as tf
 from tensorflow import keras
-from keras.preprocessing import image
-from keras.preprocessing.sequence import TimeseriesGenerator
 from keras.applications.inception_v3 import InceptionV3, preprocess_input
 from keras.models import Model, Sequential
-from keras.layers import Dense, GRU, Input, Dropout
+from keras.layers import Dense, GRU, Dropout
+
+tf.logging.set_verbosity(tf.logging.FATAL)
 
 class RNNCore:
     def __init__(self, inp_size, out_size, batch_size, step, weights=None):
@@ -29,18 +30,15 @@ class RNNCore:
             256, return_sequences=True, stateful=True,
             batch_input_shape=(self.batch_size, self.step, self.inp_size))
         )
-
         model.add(GRU(128, return_sequences=True, stateful=True))
         model.add(GRU(64, stateful=True))
-
         model.add(Dropout(0.5))
+
         model.add(Dense(32, activation='relu'))
         model.add(Dense(self.out_size, activation='relu'))
 
         model.compile(loss='mean_squared_error', optimizer='rmsprop')
         model.summary()
-
-        [print(layer.name, layer.input_shape, layer.output_shape) for layer in model.layers]
 
         return model
 
@@ -60,27 +58,19 @@ class VideoSet:
         self._count = 0
         self.data = self._data_shaper()
 
-    def _video_generator(self):
-        images = []
+    def _video_encoder(self):
         while True:
-            if len(images) == 0:
-                print("reading frames...")
-                for frame in range(self.batch_size):
-                    success, image = self.video.read()
-                    if not success: raise StopIteration("dataset is exahausted...")
-                    images.append(image)
-                    loader(frame + 1, self.batch_size)
-                print()
+            success, image = self.video.read()
+            if not success: raise StopIteration("dataset is exahausted...")
 
-                images = self.extractor.extract(images)
-                images = [image for image in images]
+            encoding = self.extractor.extract(image)
+            speed = self.speeds[self._count]
 
-            yield images.pop(0), self.speeds[self._count]
-
+            yield encoding, speed
             self._count += 1
 
     def _data_shaper(self):
-        data = self._video_generator()
+        data = self._video_encoder()
         queue = []
         for step in range(self.step):
             inp, out = next(data)
@@ -106,18 +96,13 @@ class Extractor:
             outputs=base_model.get_layer("avg_pool").output
         )
 
-    def extract(self, images):
-        batch = []
-        for image in images:
-            inp = cv2.resize(image, (299, 299))
-            inp = preprocess_input(inp)
-            batch.append(inp)
+    def extract(self, image):
+        inp = cv2.resize(image, (299, 299))
+        inp = preprocess_input(inp)
+        inp = np.expand_dims(inp, axis=0)
 
-        batch = np.array(batch)
-
-        print("encoding frames...")
-        features = self.model.predict_on_batch(batch)
-        return features
+        features = self.model.predict(inp)
+        return features[0]
 
 def loader(count, total, length=32):
     filled = int(round((length * count) / total))
@@ -141,16 +126,32 @@ if __name__ == "__main__":
     )
 
     rnn_core = RNNCore(inp_size, out_size, batch_size, step)
+    try:
+        rnn_core.model.load_weights("weights_one_epoch.h5py")
+        print("Weights successfully loaded!")
+    except:
+        print("Unable to load weights...")
+        if input("Would you like to proceed? (Old weights might be overwritten.) (y/n)") != "y":
+            raise RuntimeError("Weights could not be loaded and user chose to exit.")
+        else:
+            print("Starting with random weights (^C to exit)...")
+
+    x_train_old = None
+    y_train_old = None
 
     while True:
         x_train = []
         y_train = []
 
-        for j in range(batch_size * 4):
+        print("Encoding training data...")
+        for count in range(batch_size):
             x, y = next(video_set.data)
 
             x_train.append(x)
             y_train.append(y)
+
+            loader(count + 1, batch_size)
+        print()
 
         x_train = np.array(x_train)
         y_train = np.array(y_train)
@@ -158,6 +159,10 @@ if __name__ == "__main__":
         rnn_core.model.fit(
             x_train, y_train,
             batch_size=batch_size, epochs=1, shuffle=False,
+            validation_data=((x_train_old, y_train_old) if x_train_old is not None else None)
         )
 
         rnn_core.model.save_weights("./weights.h5py")
+
+        x_train_old = x_train
+        y_train_old = y_train
