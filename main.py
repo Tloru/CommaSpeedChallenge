@@ -150,7 +150,7 @@ if __name__ == "__main__":
             x_train.append(x)
             y_train.append(y)
 
-            loader(count + 1, batch_size, length=64)
+            loader(count + 1, batch_size)
         print()
 
         x_train = np.array(x_train)
