@@ -45,7 +45,7 @@ class RNNCore:
         return model
 
 class VideoSet:
-    def __init__(self, video_path, text_path, extractor, process_size):
+    def __init__(self, video_path, text_path, extractor, batch_size, step):
         self.video = cv2.VideoCapture(video_path)
 
         with open(text_path, "r") as text:
@@ -55,20 +55,21 @@ class VideoSet:
             self.speeds = lines
 
         self.extractor = extractor
-        self.process_size = process_size
+        self.batch_size = batch_size
+        self.step = step
         self._count = 0
-        self.data = self._video_generator()
+        self.data = self._data_shaper()
 
     def _video_generator(self):
         images = []
         while True:
             if len(images) == 0:
                 print("reading frames...")
-                for frame in range(self.process_size):
+                for frame in range(self.batch_size):
                     success, image = self.video.read()
                     if not success: raise StopIteration("dataset is exahausted...")
                     images.append(image)
-                    loader(frame + 1, self.process_size)
+                    loader(frame + 1, self.batch_size)
                 print()
 
                 images = self.extractor.extract(images)
@@ -77,6 +78,18 @@ class VideoSet:
             yield images.pop(0), self.speeds[self._count]
 
             self._count += 1
+
+    def _data_shaper(self):
+        data = self._video_generator()
+        queue = []
+        for step in range(self.step):
+            inp, out = next(data)
+            queue.append(inp)
+
+        while True:
+            yield np.array(queue), np.array([out])
+            inp, out = next(data)
+            queue = queue[1:] + [inp]
 
 # Extractor class courtesy @harvitronix:
 # https://github.com/harvitronix/five-video-classification-methods/blob/master/extractor.py
@@ -123,21 +136,28 @@ if __name__ == "__main__":
         "./data/train.mp4",
         "./data/train.txt",
         extractor,
-        batch_size
+        batch_size,
+        step
     )
 
-    x_train = np.random.random((20480, step, inp_size))
-    y_train = np.random.random((20480, out_size))
+    rnn_core = RNNCore(inp_size, out_size, batch_size, step)
 
-    pred = np.random.random((1, step, inp_size))
+    while True:
+        x_train = []
+        y_train = []
 
-    for j in range(20400):
-        print(next(video_set.data)[1].shape)
+        for j in range(batch_size * 4):
+            x, y = next(video_set.data)
 
-    # rnn_core = RNNCore(inp_size, out_size, batch_size, step)
-    # rnn_core.model.fit(
-    #     data,
-    #     batch_size=batch_size, epochs=5, shuffle=False,
-    # )
-    #
-    # rnn_core.model.predict(pred)
+            x_train.append(x)
+            y_train.append(y)
+
+        x_train = np.array(x_train)
+        y_train = np.array(y_train)
+
+        rnn_core.model.fit(
+            x_train, y_train,
+            batch_size=batch_size, epochs=1, shuffle=False,
+        )
+
+        rnn_core.model.save_weights("./weights.h5py")
