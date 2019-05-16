@@ -1,7 +1,14 @@
-.DS_Store
-test/*
-train/*
-venv/*
+# section
+# folders
+# files
+
+# hidden/unneeded endpoints
+**/__pycache__/*
+**/.DS_Store
+
+# large/repeated files/folders
+**/test/*
+**/train/*
+**/venv/*
 *.png
 *.jpg
-
