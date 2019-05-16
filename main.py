@@ -31,10 +31,11 @@ class RNNCore:
             batch_input_shape=(self.batch_size, self.step, self.inp_size))
         )
         model.add(GRU(128, return_sequences=True, stateful=True))
-        model.add(GRU(64, stateful=True))
+        model.add(GRU(64, return_sequences=True, stateful=True))
+        model.add(GRU(32, stateful=True))
         model.add(Dropout(0.5))
 
-        model.add(Dense(32, activation='relu'))
+        model.add(Dense(16, activation="relu"))
         model.add(Dense(self.out_size, activation='relu'))
 
         model.compile(loss='mean_squared_error', optimizer='rmsprop')
@@ -114,8 +115,8 @@ if __name__ == "__main__":
 
     inp_size = extractor.model.layers[-1].output_shape[1]
     out_size = 1
-    batch_size = 128
-    step = 16
+    batch_size = 120
+    step = 32
 
     video_set = VideoSet(
         "./data/train.mp4",
@@ -126,31 +127,39 @@ if __name__ == "__main__":
     )
 
     rnn_core = RNNCore(inp_size, out_size, batch_size, step)
-    try:
-        rnn_core.model.load_weights("weights_one_epoch.h5py")
-        print("Weights successfully loaded!")
-    except:
-        print("Unable to load weights...")
-        if input("Would you like to proceed? (Old weights might be overwritten.) (y/n)") != "y":
-            raise RuntimeError("Weights could not be loaded and user chose to exit.")
-        else:
-            print("Starting with random weights (^C to exit)...")
+    # try:
+    #     rnn_core.model.load_weights("weights_one_epoch.h5py")
+    #     print("Weights successfully loaded!")
+    # except:
+    #     print("Unable to load weights...")
+    #     if input("Would you like to proceed? (Old weights might be overwritten.) (y/n)") != "y":
+    #         raise RuntimeError("Weights could not be loaded and user chose to exit.")
+    #     else:
+    #         print("Starting with random weights (^C to exit)...")
 
-    x_train_old = None
-    y_train_old = None
+    x_val, y_val = [], []
+
+    print("Encoding validation data...")
+    for count in range(batch_size * 5):
+        x, y = next(video_set.data)
+
+        x_val.append(x)
+        y_val.append(y)
+
+        loader(count + 1, batch_size * 5)
+    print()
 
     while True:
-        x_train = []
-        y_train = []
+        x_train, y_train = [], []
 
         print("Encoding training data...")
-        for count in range(batch_size):
+        for count in range(batch_size * 5):
             x, y = next(video_set.data)
 
             x_train.append(x)
             y_train.append(y)
 
-            loader(count + 1, batch_size)
+            loader(count + 1, batch_size * 5)
         print()
 
         x_train = np.array(x_train)
@@ -159,10 +168,9 @@ if __name__ == "__main__":
         rnn_core.model.fit(
             x_train, y_train,
             batch_size=batch_size, epochs=1, shuffle=False,
-            validation_data=((x_train_old, y_train_old) if x_train_old is not None else None)
+            validation_data=(x_val, y_val)
         )
 
         rnn_core.model.save_weights("./weights.h5py")
 
-        x_train_old = x_train
-        y_train_old = y_train
+        print(video_set._count)
